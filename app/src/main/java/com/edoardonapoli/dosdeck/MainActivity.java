@@ -1,5 +1,6 @@
 package com.edoardonapoli.dosdeck;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.role.RoleManager;
 import android.content.ActivityNotFoundException;
@@ -24,6 +25,7 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.inputmethod.EditorInfo;
+import android.window.OnBackInvokedDispatcher;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -73,6 +75,7 @@ public final class MainActivity extends Activity {
         showBootScreen();
         updateRoleState();
         maybeRequestHomeRole();
+        registerBackHandler();
     }
 
     @Override
@@ -84,9 +87,25 @@ public final class MainActivity extends Activity {
         }
     }
 
-    @Override
-    public void onBackPressed() {
+    private void registerBackHandler() {
+        // Android 13+: back gestures go through OnBackInvokedDispatcher and, from
+        // Android 16 (API 36), never reach onBackPressed().
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::onHomeBack);
+        }
+    }
+
+    private void onHomeBack() {
         appendLine("HOME SHELL ACTIVE. TYPE SYSTEM TO CHOOSE ANOTHER LAUNCHER.");
+    }
+
+    // Fallback for Android 10-12 (minSdk 29), where the dispatcher does not exist.
+    @SuppressLint("GestureBackNavigation")
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        onHomeBack();
     }
 
     private void configureSystemBars() {
