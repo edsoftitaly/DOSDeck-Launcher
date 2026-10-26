@@ -43,7 +43,19 @@ jobs:
         run: bash ./scripts/setup-android-sdk.sh
 
       - name: Build debug APK and run checks
-        run: gradle --no-daemon clean testDebugUnitTest lintDebug assembleDebug
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon clean testDebugUnitTest lintDebug assembleDebug 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+
+      - name: Report Gradle failure
+        if: failure()
+        shell: bash
+        run: |
+          [[ -f "$RUNNER_TEMP/gradle.log" ]] || exit 0
+          msg=$(grep -A 25 -E 'What went wrong|error:|FAILED' "$RUNNER_TEMP/gradle.log" | head -n 60)
+          msg="${msg//'%'/'%25'}"; msg="${msg//$'\n'/'%0A'}"; msg="${msg//$'\r'/}"
+          echo "::error title=Gradle build failed::${msg}"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
