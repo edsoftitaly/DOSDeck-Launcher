@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ANDROID_API_LEVEL="${ANDROID_API_LEVEL:-37}"
+# Since Android 16 the SDK uses "major.minor" platform package names
+# (e.g. platforms;android-37.0). A bare "37" is accepted and normalised.
+ANDROID_API_LEVEL="${ANDROID_API_LEVEL:-37.0}"
+if [[ "$ANDROID_API_LEVEL" =~ ^[0-9]+$ ]] && (( ANDROID_API_LEVEL >= 37 )); then
+  ANDROID_API_LEVEL="${ANDROID_API_LEVEL}.0"
+fi
 ANDROID_BUILD_TOOLS_VERSION="${ANDROID_BUILD_TOOLS_VERSION:-36.0.0}"
 
 sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
@@ -79,7 +84,6 @@ fi
   "platform-tools"
 
 required_paths=(
-  "$sdk_root/platforms/android-$ANDROID_API_LEVEL/android.jar"
   "$sdk_root/build-tools/$ANDROID_BUILD_TOOLS_VERSION/apksigner"
   "$sdk_root/platform-tools/adb"
 )
@@ -90,5 +94,10 @@ for required_path in "${required_paths[@]}"; do
     exit 1
   fi
 done
+
+if ! compgen -G "$sdk_root/platforms/android-${ANDROID_API_LEVEL%%.*}*/android.jar" >/dev/null; then
+  echo "ERROR: Android platform $ANDROID_API_LEVEL was not installed under $sdk_root/platforms" >&2
+  exit 1
+fi
 
 echo "Android SDK setup completed successfully."
