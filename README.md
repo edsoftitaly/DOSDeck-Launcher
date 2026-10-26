@@ -27,6 +27,7 @@ The project is ready for GitHub: it includes the Android source, tests, reproduc
 ├── .github/workflows/release.yml     signed APK and GitHub Release
 ├── docs/PIXEL10_TEST_PLAN.md         physical-device acceptance test
 ├── scripts/generate-keystore.sh      local signing-key helper
+├── scripts/setup-android-sdk.sh      CI-safe Android SDK setup
 ├── scripts/publish-release.sh        validated semantic tag publisher
 ├── build.gradle / settings.gradle     Reproducible Android build
 ├── SECURITY.md
@@ -51,7 +52,7 @@ gh auth login
 gh repo create dosdeck-launcher --public --source=. --remote=origin --push
 ```
 
-The first push runs the CI workflow and creates a downloadable debug APK as a workflow artifact. A production GitHub Release requires the four signing secrets below.
+The first push runs the CI workflow and creates a downloadable debug APK as a workflow artifact. The workflow locates `sdkmanager` from the runner's Android SDK instead of assuming it is already on `PATH`, accepts licenses without hiding command failures, and verifies the required SDK files before building. A production GitHub Release requires the four signing secrets below.
 
 ## Configure release signing once
 
