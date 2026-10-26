@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_name">DOSDeck Launcher</string>
+  <string name="role_button">SET DEFAULT</string>
+  <string name="command_hint">TYPE A COMMAND</string>
+  <string name="terminal_prompt">C:\&gt;</string>
+  <string name="default_role_explanation">To work as the Home screen, DOSDeck must be selected as the default launcher.</string>
+</resources>

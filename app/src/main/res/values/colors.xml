@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="dos_black">#FF000000</color>
+  <color name="dos_green">#FF33FF66</color>
+  <color name="dos_dark_green">#FF0B3D18</color>
+  <color name="dos_blue">#FF0000AA</color>
+  <color name="dos_white">#FFFFFFFF</color>
+</resources>

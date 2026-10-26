@@ -1,0 +1,122 @@
+name: Publish signed APK
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing semantic-version tag to publish, for example v1.0.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+      SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+      SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+      KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+
+    steps:
+      - name: Validate tag and signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid release tag: $RELEASE_TAG"; exit 1; }
+          for name in KEYSTORE_BASE64 SIGNING_STORE_PASSWORD SIGNING_KEY_ALIAS SIGNING_KEY_PASSWORD; do
+            [[ -n "${!name:-}" ]] || { echo "Missing required GitHub secret: $name"; exit 1; }
+          done
+
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 9.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Install Android SDK 37
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-37" "build-tools;36.0.0" "platform-tools"
+
+      - name: Restore signing keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          STORE_FILE="$RUNNER_TEMP/dosdeck-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$STORE_FILE"
+          chmod 600 "$STORE_FILE"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${RELEASE_TAG#v}"
+          (( 10#$MINOR < 1000 && 10#$PATCH < 1000 )) || { echo "Minor and patch versions must be below 1000"; exit 1; }
+          VERSION_CODE=$((10#$MAJOR * 1000000 + 10#$MINOR * 1000 + 10#$PATCH))
+          (( VERSION_CODE > 0 && VERSION_CODE <= 2100000000 )) || { echo "Version code is outside Android's supported range"; exit 1; }
+          echo "SIGNING_STORE_FILE=$STORE_FILE" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+
+      - name: Build, test and lint signed release
+        run: gradle --no-daemon clean testReleaseUnitTest lintRelease assembleRelease
+
+      - name: Verify APK signature and prepare assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_APK="app/build/outputs/apk/release/app-release.apk"
+          RELEASE_DIR="$RUNNER_TEMP/release"
+          VERSION="${RELEASE_TAG#v}"
+          mkdir -p "$RELEASE_DIR"
+          APK="$RELEASE_DIR/DOSDeck-Launcher-${VERSION}.apk"
+          cp "$SOURCE_APK" "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          (cd "$RELEASE_DIR" && sha256sum "$(basename "$APK")" > "DOSDeck-Launcher-${VERSION}.apk.sha256")
+          echo "APK=$APK" >> "$GITHUB_ENV"
+          echo "CHECKSUM=$RELEASE_DIR/DOSDeck-Launcher-${VERSION}.apk.sha256" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$APK" "$CHECKSUM" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$APK" "$CHECKSUM" \
+              --verify-tag \
+              --generate-notes \
+              --title "DOSDeck Launcher ${RELEASE_TAG#v}"
+          fi
+
+      - name: Upload signed APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dosdeck-signed-${{ env.RELEASE_TAG }}
+          path: |
+            ${{ env.APK }}
+            ${{ env.CHECKSUM }}
+          if-no-files-found: error
+          retention-days: 30
