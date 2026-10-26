@@ -21,7 +21,7 @@ jobs:
           set -o pipefail
           keytool -genkeypair -keystore "$RUNNER_TEMP/t.jks" -storepass testtesttest -keypass testtesttest -alias t -keyalg RSA -keysize 2048 -validity 1 -dname "CN=t"
           export SIGNING_STORE_FILE="$RUNNER_TEMP/t.jks" SIGNING_STORE_PASSWORD=testtesttest SIGNING_KEY_ALIAS=t SIGNING_KEY_PASSWORD=testtesttest VERSION_NAME=0.0.1 VERSION_CODE=1
-          gradle --no-daemon clean testReleaseUnitTest lintRelease assembleRelease 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+          gradle --no-daemon clean testDebugUnitTest lintRelease assembleRelease 2>&1 | tee "$RUNNER_TEMP/gradle.log"
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify app/build/outputs/apk/release/app-release.apk && echo "::notice::release APK OK $(stat -c%s app/build/outputs/apk/release/app-release.apk) bytes"
       - if: failure()
         shell: bash

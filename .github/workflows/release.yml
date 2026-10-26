@@ -82,7 +82,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          gradle --no-daemon clean testReleaseUnitTest lintRelease assembleRelease 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+          gradle --no-daemon clean testDebugUnitTest lintRelease assembleRelease 2>&1 | tee "$RUNNER_TEMP/gradle.log"
 
       - name: Report Gradle failure
         if: failure()
