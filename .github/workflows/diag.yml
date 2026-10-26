@@ -1,0 +1,26 @@
+name: SDK diag
+on:
+  push:
+    branches: [ci-diag]
+jobs:
+  diag:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Probe
+        shell: bash
+        run: |
+          set +e
+          echo "::notice::os=$(lsb_release -ds) ANDROID_HOME=$ANDROID_HOME ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "::notice::cmdline=$(ls ${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools 2>&1 | tr '\n' ' ')"
+          SM=$(ls ${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager 2>/dev/null || command -v sdkmanager)
+          echo "::notice::sm=$SM"
+          $SM --list 2>/dev/null | grep -E 'platforms;android-3[6-9]|build-tools;3[6-9]' | awk '{print $1}' | sort -u | tr '\n' ' ' > list.txt
+          echo "::notice::avail=$(cat list.txt)"
+          bash ./scripts/setup-android-sdk.sh > out.log 2>&1
+          echo "::notice::script_exit=$?"
+          echo "::notice::tail=$(tail -n 15 out.log | tr '\n' '|' )"
